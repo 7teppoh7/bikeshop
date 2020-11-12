@@ -10,7 +10,11 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import ru.labs.userservice.config.jwt.JwtTokenProvider;
 import ru.labs.userservice.entities.Customer;
+import ru.labs.userservice.entities.PaidType;
 import ru.labs.userservice.services.CustomerService;
+
+import java.util.List;
+import java.util.Set;
 
 @RestController
 public class AuthController {
@@ -26,15 +30,31 @@ public class AuthController {
     @PostMapping("/login")
     public Token auth(@RequestBody AuthRequest request) {
         Customer customer = customerService.findByEmailAndPassword(request.getEmail(), request.getPassword());
-        if (customer == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email or password are incorrect");
+        if (customer == null)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email or password are incorrect");
         String token = tokenProvider.createToken(customer.getEmail(), customer.getCustomerRoles());
         return new Token(token);
     }
 
     @PostMapping("/emailByToken")
-    public EmailResponse getEmailByToken(@RequestBody Token token){
-        if (!tokenProvider.validateToken(token.getToken())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid token");
+    public EmailResponse getEmailByToken(@RequestBody Token token) {
+        if (!tokenProvider.validateToken(token.getToken()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid token");
         return new EmailResponse(tokenProvider.getEmailFromToken(token.getToken()));
+    }
+
+    @PostMapping("/rolesByToken")
+    public List getRolesByToken(@RequestBody Token token) {
+        if (!tokenProvider.validateToken(token.getToken()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid token");
+        return tokenProvider.getRolesFromToken(token.getToken());
+    }
+
+    @PostMapping("/paidTypesByToken")
+    public Set<PaidType> getPaidTypesByToken(@RequestBody Token token) {
+        if (!tokenProvider.validateToken(token.getToken()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid token");
+        return customerService.findCustomerByEmail(tokenProvider.getEmailFromToken(token.getToken())).getPaidTypeSet();
     }
 
     @Data

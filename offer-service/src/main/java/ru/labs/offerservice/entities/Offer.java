@@ -1,5 +1,6 @@
 package ru.labs.offerservice.entities;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.*;
 import ru.labs.offerservice.entities.dto.PaidType;
 
@@ -13,12 +14,16 @@ import java.util.Set;
 @Table(name = "offers")
 public class Offer {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
     private Integer id;
 
     private String name;
 
     private Float price;
 
+    @JsonIgnore
+    @ToString.Exclude
     private Integer paidTypeId;
 
     @Transient
