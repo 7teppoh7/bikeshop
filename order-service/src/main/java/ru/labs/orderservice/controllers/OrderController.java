@@ -1,6 +1,9 @@
 package ru.labs.orderservice.controllers;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.SneakyThrows;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -19,10 +22,7 @@ import ru.labs.orderservice.services.TokenService;
 import javax.persistence.Transient;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -56,30 +56,50 @@ public class OrderController {
         if (order == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found");
 
         if (order.getOfferId() != null) {
-            try {
-                HttpEntity entity = new HttpEntity(getHeaders(token));
-                ResponseEntity<Offer> response = restTemplate.exchange(OFFER_SERVICE_URL + "/offer/" + order.getOfferId(), HttpMethod.GET, entity, Offer.class);
-                order.setOffer(response.getBody());
-            } catch (HttpClientErrorException.NotFound ex) {
-                order.setOfferId(null); //offer deleted or updated (??)
-                order.setOffer(null);
-                orderService.saveOrder(order);
-            }
+            HttpEntity entity = new HttpEntity(getHeaders(token));
+            ResponseEntity<Offer> response = restTemplate.exchange(OFFER_SERVICE_URL + "/offer/" + order.getOfferId(), HttpMethod.GET, entity, Offer.class);
+            order.setOffer(response.getBody());
         }
 
         if (order.getCustomerId() != null) {
-            try {
-                HttpEntity entity = new HttpEntity(getHeaders(token));
-                ResponseEntity<Customer> response = restTemplate.exchange(USER_SERVICE_URL + "/customer/" + order.getCustomerId(), HttpMethod.GET, entity, Customer.class);
-                order.setCustomer(response.getBody());
-            } catch (HttpClientErrorException.NotFound ex) {
-                order.setCustomerId(null); //customer deleted or updated (??)
-                order.setCustomer(null);
-                orderService.saveOrder(order);
-            }
+            HttpEntity entity = new HttpEntity(getHeaders(token));
+            ResponseEntity<Customer> response = restTemplate.exchange(USER_SERVICE_URL + "/customer/" + order.getCustomerId(), HttpMethod.GET, entity, Customer.class);
+            order.setCustomer(response.getBody());
         }
 
         return order;
+    }
+
+    @PostMapping("/synchronizeDB")
+    public void synchronizeDB(@RequestHeader(value = "Authorization", required = false) final String token) {
+        if (token == null || !(tokenService.isAdmin(token) || tokenService.isSalesManager(token)))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You have no authorities for this method");
+
+        for (Order order : getAllOrders(token)) {
+            if (order.getCustomerId() != null) {
+                try {
+                    HttpEntity entity = new HttpEntity(getHeaders(token));
+                    ResponseEntity<Customer> response = restTemplate.exchange(USER_SERVICE_URL + "/customer/" + order.getCustomerId(), HttpMethod.GET, entity, Customer.class);
+                    order.setCustomer(response.getBody());
+                } catch (HttpClientErrorException.NotFound ex) {
+                    order.setCustomerId(null); //customer deleted or updated (??)
+                    order.setCustomer(null);
+                    orderService.saveOrder(order);
+                }
+            }
+            if (order.getOfferId() != null) {
+                try {
+                    HttpEntity entity = new HttpEntity(getHeaders(token));
+                    ResponseEntity<Offer> response = restTemplate.exchange(OFFER_SERVICE_URL + "/offer/" + order.getOfferId(), HttpMethod.GET, entity, Offer.class);
+                    order.setOffer(response.getBody());
+                } catch (HttpClientErrorException.NotFound ex) {
+                    order.setOfferId(null); //offer deleted or updated (??)
+                    order.setOffer(null);
+                    orderService.saveOrder(order);
+                }
+            }
+
+        }
     }
 
     @GetMapping("/orders")
@@ -165,6 +185,22 @@ public class OrderController {
         return getOrder(token, orderService.saveOrder(order));
     }
 
+    @PostMapping("/buy")
+    @ResponseStatus(value = HttpStatus.CREATED, reason = "Order created")
+    public Order buyOffer(@RequestHeader(value = "Authorization", required = false) final String token, @RequestBody Offer offer) {
+        if (token == null || !tokenService.hasAnyRole(token))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This method is only for authorized users");
+
+        if (offer == null || offer.getId() == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Offer cannot be null");
+
+        HttpEntity<Token> entity = new HttpEntity<>(new Token(token), getHeaders(token));
+        ResponseEntity<IdResponse> response = restTemplate.exchange(USER_SERVICE_URL + "/customerIdByToken/", HttpMethod.POST, entity, IdResponse.class);
+        Integer customerId = response.getBody().id;
+
+        Order order = orderService.createOrder(customerId, offer);
+        return getOrder(token, order);
+    }
+
     private void setRealValues(Order order, String token) {
 
         if (order.getStatus() != null && order.getStatus().getId() != null) {
@@ -198,4 +234,19 @@ public class OrderController {
         headers.set(HttpHeaders.AUTHORIZATION, token);
         return headers;
     }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    private static class IdResponse {
+        Integer id;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    private static class Token {
+        String token;
+    }
+
 }

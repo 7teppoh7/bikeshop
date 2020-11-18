@@ -16,4 +16,8 @@ public class StatusService {
     public Status findStatusById(Integer id){
         return statusRepository.findById(id).orElse(null);
     }
+
+    public Status findByName(String name){
+        return statusRepository.findByName(name);
+    }
 }

@@ -2,15 +2,20 @@ package ru.labs.orderservice.services;
 
 import org.springframework.stereotype.Service;
 import ru.labs.orderservice.entity.Order;
+import ru.labs.orderservice.entity.dto.Offer;
 import ru.labs.orderservice.repositories.OrderRepository;
+
+import java.util.Date;
 
 @Service
 public class OrderService  {
 
     private final OrderRepository orderRepository;
+    private final StatusService statusService;
 
-    public OrderService(OrderRepository orderRepository) {
+    public OrderService(OrderRepository orderRepository, StatusService statusService) {
         this.orderRepository = orderRepository;
+        this.statusService = statusService;
     }
 
     public Order findOrderById(Integer id){
@@ -42,4 +47,15 @@ public class OrderService  {
                 order.getName() != null);
     }
 
+    public Order createOrder(Integer customerId, Offer offer) {
+        Order order = Order.builder()
+                .customerId(customerId)
+                .name("Заказ пользователя " + customerId + " на предложение " + offer.getName() + " (ID: " + offer.getId() + ")")
+                .offerId(offer.getId())
+                .status(statusService.findByName("ACCEPTED"))
+                .paid(false)
+                .deliveryTime(new Date())
+                .build();
+        return orderRepository.save(order);
+    }
 }

@@ -63,18 +63,32 @@ public class OfferController {
         if (offer == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Offer not found");
 
         if (offer.getPaidTypeId() != null) {
-            try {
-                HttpEntity entity = new HttpEntity(getHeaders(token));
-                ResponseEntity<PaidType> response = restTemplate.exchange(USER_SERVICE_URL + "/paid-type/" + offer.getPaidTypeId(), HttpMethod.GET, entity, PaidType.class);
-                offer.setPaidType(response.getBody());
-            } catch (HttpClientErrorException.NotFound ex) {
-                offer.setPaidTypeId(null); //paidType deleted or updated (??)
-                offer.setPaidType(null);
-                offerService.saveOffer(offer);
-            }
+            HttpEntity entity = new HttpEntity(getHeaders(token));
+            ResponseEntity<PaidType> response = restTemplate.exchange(USER_SERVICE_URL + "/paid-type/" + offer.getPaidTypeId(), HttpMethod.GET, entity, PaidType.class);
+            offer.setPaidType(response.getBody());
         }
 
         return offer;
+    }
+
+    @PostMapping("/synchronizeDB")
+    public void synchronizeDB(@RequestHeader(value = "Authorization", required = false) final String token) {
+        if (token == null || !(tokenService.isAdmin(token) || tokenService.isSalesManager(token)))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You have no authorities for this method");
+
+        for (Offer offer : getAllOffers(token)) {
+            if (offer.getPaidTypeId() != null) {
+                try {
+                    HttpEntity entity = new HttpEntity(getHeaders(token));
+                    ResponseEntity<PaidType> response = restTemplate.exchange(USER_SERVICE_URL + "/paid-type/" + offer.getPaidTypeId(), HttpMethod.GET, entity, PaidType.class);
+                    offer.setPaidType(response.getBody());
+                } catch (HttpClientErrorException.NotFound ex) {
+                    offer.setPaidTypeId(null);
+                    offer.setPaidType(null);
+                    offerService.saveOffer(offer);
+                }
+            }
+        }
     }
 
     @GetMapping("/offers")
@@ -163,19 +177,9 @@ public class OfferController {
 
         if (offer == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Offer not found");
 
-        HttpEntity<Token> entity = new HttpEntity<>(new Token(token), getHeaders(token));
-        ResponseEntity<IdResponse> response = restTemplate.exchange(USER_SERVICE_URL + "/customerIdByToken/", HttpMethod.POST, entity, IdResponse.class);
-        Integer customerId = response.getBody().id;
-
-        Order order = new Order();
-        order.setCustomer(new CustomerDTO(customerId));
-        order.setName("Заказ пользователя " + customerId + " на предложение " + offer.getId());
-        order.setOffer(offer);
-        order.setStatus(new StatusDTO(1)); //TODO: get status from order service?
-        order.setPaid(false);
-        order.setDeliveryTime(new Date());
-        HttpEntity<Order> buyRequest = new HttpEntity<>(order, getHeaders(token));
-        ResponseEntity<Order> buyResponse = restTemplate.exchange(ORDER_SERVICE_URL + "/order/create", HttpMethod.POST, buyRequest, Order.class);
+        HttpEntity<Offer> buyRequest = new HttpEntity<>(offer, getHeaders(token));
+        ResponseEntity<Order> buyResponse = restTemplate.exchange(ORDER_SERVICE_URL + "/order/buy", HttpMethod.POST, buyRequest, Order.class);
+        if (buyResponse.getStatusCode() != HttpStatus.CREATED) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Error during purchase");
     }
 
 
@@ -216,20 +220,5 @@ public class OfferController {
         headers.set(HttpHeaders.AUTHORIZATION, token);
         return headers;
     }
-
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    private static class IdResponse {
-        Integer id;
-    }
-
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    private static class Token {
-        String token;
-    }
-
 
 }
