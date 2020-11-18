@@ -52,6 +52,7 @@ public class CustomerController {
     }
 
     @PostMapping("/create")
+    @ResponseStatus(value = HttpStatus.CREATED, reason = "Created successfully")
     public Customer createCustomer(@RequestBody Customer customer) {
         if (!customerService.validateCustomer(customer))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Customer fields should be NotNull");

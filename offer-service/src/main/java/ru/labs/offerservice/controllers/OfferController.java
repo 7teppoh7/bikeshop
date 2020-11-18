@@ -1,6 +1,9 @@
 package ru.labs.offerservice.controllers;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.SneakyThrows;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -11,7 +14,10 @@ import org.springframework.web.server.ResponseStatusException;
 import ru.labs.offerservice.entities.Category;
 import ru.labs.offerservice.entities.Characteristic;
 import ru.labs.offerservice.entities.Offer;
+import ru.labs.offerservice.entities.dto.CustomerDTO;
+import ru.labs.offerservice.entities.dto.Order;
 import ru.labs.offerservice.entities.dto.PaidType;
+import ru.labs.offerservice.entities.dto.StatusDTO;
 import ru.labs.offerservice.services.CategoryService;
 import ru.labs.offerservice.services.CharacteristicService;
 import ru.labs.offerservice.services.OfferService;
@@ -32,8 +38,8 @@ public class OfferController {
     @Value("${user-service.url}")
     private String USER_SERVICE_URL;
 
-    @Value("${offer-service.url}")
-    private String OFFER_SERVICE_URL;
+    @Value("${order-service.url}")
+    private String ORDER_SERVICE_URL;
 
     private final RestTemplate restTemplate;
     private final TokenService tokenService;
@@ -56,14 +62,11 @@ public class OfferController {
 
         if (offer == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Offer not found");
 
-        PaidType paidType;
-
         if (offer.getPaidTypeId() != null) {
             try {
                 HttpEntity entity = new HttpEntity(getHeaders(token));
                 ResponseEntity<PaidType> response = restTemplate.exchange(USER_SERVICE_URL + "/paid-type/" + offer.getPaidTypeId(), HttpMethod.GET, entity, PaidType.class);
-                paidType = response.getBody();
-                offer.setPaidType(paidType);
+                offer.setPaidType(response.getBody());
             } catch (HttpClientErrorException.NotFound ex) {
                 offer.setPaidTypeId(null); //paidType deleted or updated (??)
                 offer.setPaidType(null);
@@ -85,6 +88,7 @@ public class OfferController {
     }
 
     @PostMapping("/create")
+    @ResponseStatus(value = HttpStatus.CREATED, reason = "Created successfully")
     public Offer createOffer(@RequestHeader(value = "Authorization", required = false) final String token, @RequestBody Offer offer) {
         if (token == null || !(tokenService.isAdmin(token) || tokenService.isSalesManager(token)))
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You have no authorities for this method");
@@ -118,7 +122,8 @@ public class OfferController {
 
         if (offer.getId() == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ID must be present");
         Offer offerToUpdate = offerService.findOfferById(offer.getId());
-        if (offerToUpdate == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Such offer doesn't exist");
+        if (offerToUpdate == null)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Such offer doesn't exist");
 
         setRealValues(offer, token);
 
@@ -131,7 +136,7 @@ public class OfferController {
 
         for (Method met : offer.getClass().getDeclaredMethods()) {
             String possibleKey = met.getName().substring(3); //cut get
-            if (met.getName().startsWith("get") && fieldMap.containsKey(possibleKey)){
+            if (met.getName().startsWith("get") && fieldMap.containsKey(possibleKey)) {
                 Field field = fieldMap.get(possibleKey);
                 Method setMet = offer.getClass().getMethod("set" + possibleKey, field.getType());
                 Object result = met.invoke(offer);
@@ -142,12 +147,35 @@ public class OfferController {
     }
 
     @GetMapping("/availableOffers")
-    public Set<Offer> getAvailableOffersByUserPaidTypes(@RequestHeader(value = "Authorization", required = false) final String token){
+    public Set<Offer> getAvailableOffersByUserPaidTypes(@RequestHeader(value = "Authorization", required = false) final String token) {
         if (token == null || !tokenService.hasAnyRole(token))
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This method is only for authorized users");
 
         List<PaidType> userPaidTypes = Arrays.asList(tokenService.getPaidTypesByToken(token));
         return getAllOffers(token).stream().filter((x) -> userPaidTypes.contains(x.getPaidType())).collect(Collectors.toSet());
+    }
+
+    @PostMapping("/{offer}/buy")
+    @ResponseStatus(value = HttpStatus.OK, reason = "Order is created")
+    public void buyOffer(@RequestHeader(value = "Authorization", required = false) final String token, @PathVariable Offer offer) {
+        if (token == null || !tokenService.hasAnyRole(token))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This method is only for authorized users");
+
+        if (offer == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Offer not found");
+
+        HttpEntity<Token> entity = new HttpEntity<>(new Token(token), getHeaders(token));
+        ResponseEntity<IdResponse> response = restTemplate.exchange(USER_SERVICE_URL + "/customerIdByToken/", HttpMethod.POST, entity, IdResponse.class);
+        Integer customerId = response.getBody().id;
+
+        Order order = new Order();
+        order.setCustomer(new CustomerDTO(customerId));
+        order.setName("Заказ пользователя " + customerId + " на предложение " + offer.getId());
+        order.setOffer(offer);
+        order.setStatus(new StatusDTO(1)); //TODO: get status from order service?
+        order.setPaid(false);
+        order.setDeliveryTime(new Date());
+        HttpEntity<Order> buyRequest = new HttpEntity<>(order, getHeaders(token));
+        ResponseEntity<Order> buyResponse = restTemplate.exchange(ORDER_SERVICE_URL + "/order/create", HttpMethod.POST, buyRequest, Order.class);
     }
 
 
@@ -188,5 +216,20 @@ public class OfferController {
         headers.set(HttpHeaders.AUTHORIZATION, token);
         return headers;
     }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    private static class IdResponse {
+        Integer id;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    private static class Token {
+        String token;
+    }
+
 
 }

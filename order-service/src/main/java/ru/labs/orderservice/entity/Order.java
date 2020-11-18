@@ -1,12 +1,13 @@
 package ru.labs.orderservice.entity;
 
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.*;
 
 import ru.labs.orderservice.entity.dto.*;
 
 import javax.persistence.*;
-import java.sql.Date;
+import java.util.Date;
 
 @Entity
 @Data
@@ -19,10 +20,19 @@ public class Order {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private Integer id;
 
+    @JsonIgnore
+    @ToString.Exclude
     private Integer offerId;
 
     @Transient
     private Offer offer;
+
+    @JsonIgnore
+    @ToString.Exclude
+    private Integer customerId;
+
+    @Transient
+    private Customer customer;
 
     private String name;
 

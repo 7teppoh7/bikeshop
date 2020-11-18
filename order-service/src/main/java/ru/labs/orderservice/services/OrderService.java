@@ -28,4 +28,18 @@ public class OrderService  {
     public Order saveOrder(Order order){
         return orderRepository.save(order);
     }
+
+    public boolean validateOrder(Order order) {
+        return (order != null &&
+                order.getCustomer() != null &&
+                order.getCustomer().getId() != null &&
+                order.getOffer() != null &&
+                order.getOffer().getId() != null &&
+                order.getPaid() != null &&
+                order.getDeliveryTime() != null &&
+                order.getStatus() != null &&
+                order.getStatus().getId() != null &&
+                order.getName() != null);
+    }
+
 }

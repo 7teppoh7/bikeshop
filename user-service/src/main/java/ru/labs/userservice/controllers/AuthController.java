@@ -54,7 +54,25 @@ public class AuthController {
     public Set<PaidType> getPaidTypesByToken(@RequestBody Token token) {
         if (!tokenProvider.validateToken(token.getToken()))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid token");
-        return customerService.findCustomerByEmail(tokenProvider.getEmailFromToken(token.getToken())).getPaidTypeSet();
+        Customer customer = customerService.findCustomerByEmail(tokenProvider.getEmailFromToken(token.getToken()));
+        if (customer == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+        return customer.getPaidTypeSet();
+    }
+
+    @PostMapping("/customerIdByToken")
+    public IdResponse getCustomerIdByToken(@RequestBody Token token){
+        if (!tokenProvider.validateToken(token.getToken()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid token");
+        Customer customer = customerService.findCustomerByEmail(tokenProvider.getEmailFromToken(token.getToken()));
+        if (customer == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+        return new IdResponse(customer.getId());
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    private static class IdResponse {
+        private Integer id;
     }
 
     @Data
