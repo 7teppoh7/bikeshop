@@ -2,6 +2,8 @@ package ru.labs.offerservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.web.client.RestTemplate;
 
 @SpringBootApplication
 public class OfferServiceApplication {
@@ -10,4 +12,8 @@ public class OfferServiceApplication {
         SpringApplication.run(OfferServiceApplication.class, args);
     }
 
+    @Bean
+    public RestTemplate restTemplate(){
+        return new RestTemplate();
+    }
 }

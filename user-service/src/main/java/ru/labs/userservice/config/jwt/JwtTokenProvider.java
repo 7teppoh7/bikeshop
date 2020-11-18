@@ -8,6 +8,7 @@ import ru.labs.userservice.entities.Role;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -16,7 +17,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class JwtTokenProvider {
 
-    @Value("${jwt.token.secret")
+    @Value("${jwt.token.secret}")
     private String jwtSecret;
 
     private final JwtUserDetailsService userDetailsService;
@@ -58,5 +59,10 @@ public class JwtTokenProvider {
     public String getEmailFromToken(String token) {
         Claims claims = Jwts.parser().setSigningKey(jwtSecret).parseClaimsJws(token).getBody();
         return claims.getSubject();
+    }
+
+    public ArrayList getRolesFromToken(String token) {
+        Claims claims = Jwts.parser().setSigningKey(jwtSecret).parseClaimsJws(token).getBody();
+        return claims.get("roles", ArrayList.class);
     }
 }

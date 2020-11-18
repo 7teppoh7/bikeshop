@@ -8,7 +8,7 @@ import ru.labs.userservice.entities.PaidType;
 import ru.labs.userservice.services.PaidTypeService;
 
 @RestController
-@RequestMapping("/paidtype")
+@RequestMapping("/paid-type")
 public class PaidTypeController {
 
     private final PaidTypeService paidTypeService;
@@ -24,7 +24,7 @@ public class PaidTypeController {
         return paidType;
     }
 
-    @GetMapping("/paidtypes")
+    @GetMapping("/paid-types")
     public Iterable<PaidType> getAllPaidTypes() {
         return paidTypeService.findAllPaidTypes();
     }

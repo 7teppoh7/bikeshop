@@ -39,7 +39,7 @@ public class CustomerController {
         return customer;
     }
 
-    @GetMapping("/{customerId}/paidtypes")
+    @GetMapping("/{customerId}/paid-types")
     public Set<PaidType> getCustomerPaidType(@PathVariable Integer customerId) {
         Customer customer = customerService.findCustomerById(customerId);
         if (customer == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Such customer doesn't exist");
@@ -95,7 +95,7 @@ public class CustomerController {
                 if (result != null) setMet.invoke(updated, result);
             }
         }
-        return updated;
+        return customerService.saveCustomer(updated);
     }
 
     private Customer updateCheck(Customer customer) {
@@ -106,6 +106,6 @@ public class CustomerController {
         if (email != null && !email.equals(oldCustomer.getEmail()) && customerService.isEmailPresent(email)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is already used");
         String phone = customer.getPhoneNumber();
         if (phone != null && !phone.equals(oldCustomer.getPhoneNumber()) && customerService.isPhonePresent(phone)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone is already used");
-        return oldCustomer;
+        return customer;
     }
 }
